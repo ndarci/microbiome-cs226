@@ -3,4 +3,12 @@ Final project for Bioinformatics 226 at UCLA. Analyzing the effect of gut microb
 
 John Randazzo, Maddie Murphy, Niko Darci-Maher
 
+# Merge data and select baseline samples
+```{bash}
+Rscript cleanup.R
+```
 
+# Run regression analysis
+```{bash}
+Rscript regression.R
+```

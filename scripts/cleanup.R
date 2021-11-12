@@ -2,41 +2,29 @@ library(dplyr)
 library(tidyverse)
 library(reshape)
 
-ct <- read.delim("~/cs226 microbiome/clinical_tests.txt", header=T, stringsAsFactors=T)
+# paths are relative to scripts/ folder
+
+# import data
+ct <- read.delim("../data/clinical_tests.txt", header=T, stringsAsFactors=T)
 # View(ct)
-gut16s <- read.delim("~/cs226 microbiome/gut_16s_abundance.txt", header=T, stringsAsFactors=T)
+gut16s <- read.delim("../data/gut_16s_abundance.txt", header=T, stringsAsFactors=T)
 # View(gut16s)
-subjects <- read.delim("~/cs226 microbiome/subjects.txt", header=T, stringsAsFactors=T)
+subjects <- read.delim("../data/subjects.txt", header=T, stringsAsFactors=T)
 # View(subjects)
-visits <- read.delim("~/cs226 microbiome/visits.txt", header=T, stringsAsFactors=T)
+visits <- read.delim("../data/visits.txt", header=T, stringsAsFactors=T)
 # View(visits)
 
 # unique(gut16s$SampleID) %in% unique(visits$VisitID)
+
+# merge abundance and visit data
 colnames(visits)[1] <- "SampleID"
+ab_visit <- left_join(gut16s,visits,by="SampleID")
 
-df <- left_join(gut16s,visits,by="SampleID")
-df1 <- df[,c(1, 98,99,2:97,100:104)]
+# remove event notes and missing collection date
+ab_visit_clean <- ab_visit[,c(1:104)]
+ab_visit_clean <- ab_visit_clean[!is.na(ab_visit_clean$CollectionDate),]
 
-
-# some of the observations in visits had sample ids that didnt align with gut 16s sample id
-# like this fuckin guy
-df1[grep("ZOZOW1T", df1$SampleID), c(1,2,3)]
-# only about half have perfect matches, otherwise NAs
-# NA values mean that match was not found for sample ID
-# which means missing collection date (time var) and subjID
-
-# itll be pretty easy to link the subject ID with the sample IDs
-# but idk if anything can be done about the missing collection dates...
-# other than delete them.
-
-# for now im dropping the samples with no collection time, ie no match in SampleID btwn gut16s and visits
-sum(is.na(df1$CollectionDate))
-# not too many....
-# bye for now
-df2 <- df1[!is.na(df1$CollectionDate),]
-
-# entroducing.... clinical tests data
-colnames(ct)
+# add clinical test data
 colnames(ct)[1] <- "SampleID"
 # trim last few cols
 ct <- ct[,c(1:52)]
@@ -46,22 +34,32 @@ rowSums(is.na(ct))
 colSums(is.na(ct))
 # 943/969 missing values for insulin... hell yea
 
-# our final product, for now:
-df3 <- left_join(df2,ct, by = "SampleID")
+# merge with abundance and visit data
+alldata_clean <- left_join(ab_visit_clean, ct, by = "SampleID")
+# remove event notes
+alldata_clean <- alldata_clean[,-c(100:104)]
 
-# View(df3)
-# how many subjects end up in df3?
-length(unique(df3$SubjectID))
-rowSums(is.na(df3))
-colSums(is.na(df3))
+# select baseline samples for each individual
+# define baseline as minimum collection date
+baselines <- alldata_clean %>%
+  group_by(SubjectID) %>%
+  mutate(
+    basetime = min(CollectionDate, na.rm = T)
+  ) %>%
+  arrange(SubjectID)
+baseline_time <- baselines %>% select(SubjectID,basetime) %>% unique()
 
-colnames(df3)
+# base_ab_pheno has complete abundance data and liver lab data for all baseline individuals
+base_ab_pheno <- merge(baseline_time, alldata_clean, by.x = c("SubjectID","basetime"), by.y = c("SubjectID","CollectionDate"), all.x = TRUE)
+base_ab_pheno <- cbind(base_ab_pheno[,c("SubjectID","basetime","SampleID","A1C", "CHOL", "CHOLHDL", "HDL", "LDL", "LDLHDL")], base_ab_pheno %>% select(starts_with("genus")))
+base_ab_pheno <- na.omit(base_ab_pheno)
 
-# focus only on hmp subjects...?
-visits$SubStudy %>% summary()
-df1$SubStudy %>% summary()
-df2$SubStudy %>% summary()
-df3$SubStudy %>% summary()
+# get a dataframe with just the abundance variables
+base_abund <- (base_ab_pheno %>% select(starts_with("genus")))
+rownames(base_abund) <- base_ab_pheno$SampleID
+
+write.table(base_ab_pheno, "../data/baseline_genusAbundance_pheno.txt", quote = F, row.names = F)
+write.table(base_abund, "../data/baseline_genusAbundance.txt", quote = F, row.names = T)
+write.table(alldata_clean, "../data/allTimePoints_abundance_pheno_visitInfo.txt", quote = F, row.names = F)
 
 
-# the gut16 data already provides a solid amount of predictors... we need to think of an appropriate response.
