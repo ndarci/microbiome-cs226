@@ -1,6 +1,6 @@
 library(dplyr)
-library(tidyverse)
-library(reshape)
+# library(tidyverse)
+# library(reshape)
 
 # paths are relative to scripts/ folder
 
@@ -60,6 +60,6 @@ rownames(base_abund) <- base_ab_pheno$SampleID
 
 write.table(base_ab_pheno, "../data/baseline_genusAbundance_pheno.txt", quote = F, row.names = F)
 write.table(base_abund, "../data/baseline_genusAbundance.txt", quote = F, row.names = T)
-write.table(alldata_clean, "../data/allTimePoints_abundance_pheno_visitInfo.txt", quote = F, row.names = F)
+write.table(alldata_clean, "../data/allTimePoints_abundance_pheno_visitInfo.txt", quote = F, row.names = F, sep = ',')
 
 
