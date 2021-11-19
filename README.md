@@ -12,3 +12,8 @@ Rscript cleanup.R
 ```{bash}
 Rscript regression.R
 ```
+
+# Compute dysbiosis scores and regress on them
+```{bash}
+Rscript dysbiosis_analysis.R
+```
