@@ -2,20 +2,27 @@
 library(ggplot2)
 library(ggpubr)
 library(dplyr)
+library(tidyverse)
+library(Hmisc)
+library(corrplot)
 
-# setwd("~/src/microbiome-cs226/scripts/")
+setwd("~/src/microbiome-cs226/scripts/")
 
 # import data
-ab = read.table("../data/baseline_genusAbundance.txt")
-ab_pheno = read.table("../data/baseline_genusAbundance_pheno.txt", header = T)
-pheno = ab_pheno[1:9]
+# ab = read.table("../data/baseline_genusAbundance.txt")
+# ab_pheno = read.table("../data/baseline_genusAbundance_pheno.txt", header = T)
+# pheno = ab_pheno[1:9]
 
 ab_pheno_all = read.table("../data/allTimePoints_abundance_pheno_visitInfo.txt", header = T, sep = ',')
+desiredpheno = c("SampleID", "SubjectID", "CollectionDate", 
+                 "LDLHDL", "Age", "Sex", "BMI", "Race")
+# make sure we have complete data
 ab_pheno_all = cbind(select(ab_pheno_all, starts_with("genus")), 
-                     ab_pheno_all[c("SampleID", "SubjectID", "CollectionDate", "LDLHDL")])
+                     ab_pheno_all[desiredpheno])
 ab_pheno_all = na.omit(ab_pheno_all)
-pheno_all = ab_pheno_all[c("SampleID", "SubjectID", "CollectionDate", "LDLHDL")]
+# separate abundance from phenotype
 ab_all = select(ab_pheno_all, starts_with("genus"))
+pheno_all = ab_pheno_all[desiredpheno]
 rownames(ab_all) = ab_pheno_all$SampleID
 
 # summary(lm(ab_pheno_all$LDLHDL ~ ., data = ab_all))
@@ -25,12 +32,19 @@ rownames(ab_all) = ab_pheno_all$SampleID
 #                                                color = ab_pheno_all$LDLHDL > mean(ab_pheno_all$LDLHDL)))
 
 # function to calculate bray-curtis dissimilarity between two samples (assumes they are counted as proportions)
-# todo: remove samples taken from the same subject
 braycurtis <- function(si, sj) {
   # sum lesser proportions of each genus
   top = sum(abs(si - sj))
   bottom = sum(si + sj)
   return(top/bottom)
+}
+
+# function to coerce the right rows into bray-curtis and take median result
+braycurtis_wrap <- function(abund, sample, healthy, pheno) {
+  samesubject = pheno[pheno$SampleID == sample, "SubjectID"]
+  res = sapply(healthy[!(healthy %in% samesubject)], function(h) 
+    braycurtis(abund[h,], abund[sample,]))
+  return(median(res))
 }
 
 # function to get dysbiosis scores given an abundance table and response variable
@@ -46,8 +60,14 @@ dysbiosisAnalysis <- function(abund, pheno, target) {
   unhealthy = setdiff(rownames(abund), healthy)
   
   # calculate median bray-curtis dissimilarity from healthy for each sample
-  medianbc = sapply(rownames(abund), function(samp) 
-    median(sapply(healthy, function(h) braycurtis(abund[samp,], abund[h,])))
+  # exclude samples from the same subject
+  # medianbc = sapply(rownames(abund), function(samp) 
+  #   median(sapply(healthy, function(h) braycurtis(abund[samp,], abund[h,])))
+  # )
+  
+  
+  medianbc = sapply(rownames(abund), function(sample)
+      braycurtis_wrap(abund, sample, healthy, pheno)
   )
   
   # find dysbiotic samples
@@ -62,17 +82,41 @@ dysbiosisAnalysis <- function(abund, pheno, target) {
   return(list(medianbc = medianbc, pheno = pheno))
 }
 
-dysbio_all = dysbiosisAnalysis(ab_all, pheno_all, ab_pheno_all$LDLHDL)
+dysbio_all = dysbiosisAnalysis(ab_all, pheno_all, pheno_all$LDLHDL)
 medianbc = dysbio_all$medianbc
 pheno = dysbio_all$pheno
 
+# compute PCs to correct for in regression
+pca_all = prcomp(ab_all, center = T, scale. = T)
+
+# find correlations with PCs and other important factors
+corfeatures = cbind(pca_all$x[,1:10], 
+                    pheno[c("LDLHDL", "medianbc", "Age", "Sex", "BMI")])
+corfeatures$Sex = as.numeric(as.factor(corfeatures$Sex))
+cor = rcorr(as.matrix(corfeatures), type = "pearson")
+# fix missing diagonal
+for (i in 1:nrow(cor$P)) {
+    cor$P[i, i] <- 0
+}
+png("../fig/pca_correlation_heatmap.png", width = 1500, height = 1500, res = 200)
+print(corrplot(cor$r, type = "upper", p.mat = cor$P, sig.level = 0.05/nrow(cor$r),
+         pch.cex = 1, pch.col = "gray",
+         tl.cex = 0.75, tl.col = "black",
+         method = "color"))
+dev.off()
+
+ggplot(corfeatures, aes(x = PC6, y = medianbc)) + geom_point() + geom_smooth(method = "lm", se = F)
+
 # fit linear model predicting LDLHDL from dysbiosis score
-summary(lm(LDLHDL ~ medianbc, data = pheno))
+# correct for PCs and covariates
+summary(lm(LDLHDL ~ medianbc + PC1 + PC2 + PC3 + PC4 + PC5 + PC6 + Age + Sex, data = corfeatures))
 
 # scatter plot of this result ^
-ggplot(pheno, aes(x = medianbc, y = LDLHDL)) + 
+dysbio_scatter = ggplot(pheno, aes(x = medianbc, y = LDLHDL)) + 
   geom_point() + 
+  xlab("Dysbiosis score") + 
   geom_smooth(method = "lm", se = F)
+ggsave("../fig/scatterplot_dysbiosis_LDLHDL.png", height = 7, width = 7, dpi = 200)
 
 # are distributions of dysbiosis score different across healthy and unhealthy?
 # histogram^
@@ -89,8 +133,10 @@ ggplot() +
 ggplot(pheno) + geom_boxplot(aes(x = healthy, y = medianbc))
 
 # is LDLHDL different in dysbiotic samples?
-ggplot(pheno, aes(x = dysbiotic, y = LDLHDL)) + geom_boxplot() + 
+dysbio_boxplot = ggplot(pheno, aes(x = dysbiotic, y = LDLHDL)) + geom_boxplot() + 
+  xlab("Dysbiotic") +
   stat_compare_means(method = "t.test", label.x = TRUE)
+ggsave("../fig/boxplot_Disbiotic_LDLHDL.png", dysbio_boxplot, width = 5, height = 5, dpi = 200)
 t.test(pheno[pheno$dysbiotic,"LDLHDL"], pheno[!pheno$dysbiotic, "LDLHDL"])
 
 # pcs = prcomp(ab_scale, center = T, scale. = T)

@@ -39,6 +39,10 @@ alldata_clean <- left_join(ab_visit_clean, ct, by = "SampleID")
 # remove event notes
 alldata_clean <- alldata_clean[,-c(100:104)]
 
+# merge with subject level data
+alldata_clean <- merge(alldata_clean, subjects, by = "SubjectID")
+alldata_clean <- alldata_clean[!(colnames(alldata_clean) %in% c("Study"))]
+
 # select baseline samples for each individual
 # define baseline as minimum collection date
 baselines <- alldata_clean %>%
