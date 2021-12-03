@@ -37,7 +37,7 @@ LDL_binned <- as.character(findInterval(LDL, v_ldl))
 
 ### LDL PLOT
 ggplot(data = PCs_df) + 
-  geom_point(aes(x = PC3, y = PC4, color = LDL_binned)) + 
+  geom_point(aes(x = PC1, y = PC2, color = LDL_binned)) + 
   scale_color_brewer(palette ='Set1') +
   theme_bw() 
 
@@ -92,21 +92,35 @@ PCs_allTimepoints_df <- data.frame(pca_allTimepoints$x)
 # https://www.healthline.com/health/cholesterol-ratio
 LDLHDL_all <- pheno_all$LDLHDL
 v_ldlhdl <- c(3.5, 4, 5)
-LDLHDL_all_binned <- as.character(findInterval(LDLHDL_all, v_ldlhdl))
+LDLHDL_all_binned <- findInterval(LDLHDL_all, v_ldlhdl)
+for (i in 1:length(LDLHDL_all_binned)){
+  if (LDLHDL_all_binned[i] == 0)
+    LDLHDL_all_binned[i] = "LDL/HDL < 3.5"
+  if (LDLHDL_all_binned[i] == 1)
+    LDLHDL_all_binned[i] = "LDL/HDL 3.5 - 4"
+  if (LDLHDL_all_binned[i] == 2)
+    LDLHDL_all_binned[i] = "LDL/HDL 4 - 5"
+  if (LDLHDL_all_binned[i] == 3)
+    LDLHDL_all_binned[i] = "LDL/HDL > 5"
+}
 
 ### LDLHDL PLOT
-ggplot(data = PCs_allTimepoints_df) + 
-  geom_point(aes(x = PC6, y = PC2, color = LDLHDL_all_binned)) + 
+myscatterplot <- ggplot(data = PCs_allTimepoints_df) + 
+  geom_point(aes(x = PC1, y = PC2, color = LDLHDL_all_binned)) + 
   scale_color_brewer(palette ='Set1') +
-  theme_bw() 
+  theme_bw() +
+  labs(color='LDL HDL Cholesterol Ratio')
 
+## ggsave
+# dpi 200
+ggsave("~/Desktop/ldlhdlscatter.png", myscatterplot, dpi=200)
 
 # Bin LDL for all timepoints (can use earlier bin vector)
 LDL_all <- pheno_all$LDL
 LDL_all_binned <- as.character(findInterval(LDL_all, v_ldl))
 ### LDL PLOT
 ggplot(data = PCs_allTimepoints_df) + 
-  geom_point(aes(x = PC6, y = PC2, color = LDL_all_binned)) + 
+  geom_point(aes(x = PC1, y = PC2, color = LDL_all_binned)) + 
   scale_color_brewer(palette ='Set1') +
   theme_bw() 
 
@@ -115,7 +129,7 @@ CHOL_all <- pheno_all$CHOL
 CHOL_all_binned <- as.character(findInterval(CHOL_all, v_chol))
 ### CHOL PLOT
 ggplot(data = PCs_allTimepoints_df) + 
-  geom_point(aes(x = PC34, y = PC6, color = CHOL_all_binned)) + 
+  geom_point(aes(x = PC1, y = PC6, color = CHOL_all_binned)) + 
   scale_color_brewer(palette ='Set1') +
   theme_bw() 
 
@@ -124,7 +138,7 @@ ggplot(data = PCs_allTimepoints_df) +
 A1C_all <- pheno_all$A1C
 A1C_all_binned <- as.character(findInterval(A1C_all, v_a1c))
 ggplot(data = PCs_allTimepoints_df) + 
-  geom_point(aes(x = PC10, y = PC35, color = A1C_all_binned)) + 
+  geom_point(aes(x = PC1, y = PC2, color = A1C_all_binned)) + 
   scale_color_brewer(palette ='Set1') +
   theme_bw() 
 
@@ -176,4 +190,24 @@ plot(PC_ldlhdl.enet, main="Elastic Net")
 
 ldlhdl_ypred <- predict(PC_ldlhdl.enet, s=PC_ldlhdl.enet$lambda.1se, newx=x.test)
 mse_ldlhdl <- mean((y_ldlhdl.test - ldlhdl_ypred)^2)
+
+((y_ldlhdl.test - ldlhdl_ypred)^2)/(y_ldlhdl.test )
+
+
+### VARIANCE EXPLAINED PLOT
+
+# pca_allTimepoints is our PCA
+pcsummary <- summary(pca_allTimepoints)
+variance <- data.frame(PC =  names(pcsummary$importance[2,1:10]), Variance = pcsummary$importance[2,1:10])
+level_order = c(variance$PC)
+
+varianceplot <- ggplot(data = variance, aes(x=factor(PC, levels=level_order), y=Variance, group=1)) +
+  geom_line() +
+  geom_point() +
+  xlab("PC") +
+  ylab("Variance Explained")
+
+varianceplot
+
+ggsave("~/Desktop/variance_explained.png", varianceplot, dpi=200)
 
