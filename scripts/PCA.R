@@ -113,7 +113,7 @@ myscatterplot <- ggplot(data = PCs_allTimepoints_df) +
 
 ## ggsave
 # dpi 200
-ggsave("~/Desktop/ldlhdlscatter.png", myscatterplot, dpi=200)
+ggsave("~/microbiome-cs226/fig/ldlhdlscatter.png", myscatterplot, dpi=200)
 
 # Bin LDL for all timepoints (can use earlier bin vector)
 LDL_all <- pheno_all$LDL
@@ -209,5 +209,5 @@ varianceplot <- ggplot(data = variance, aes(x=factor(PC, levels=level_order), y=
 
 varianceplot
 
-ggsave("~/Desktop/variance_explained.png", varianceplot, dpi=200)
+ggsave("~/microbiome-cs226/fig/variance_explained.png", varianceplot, dpi=200)
 
