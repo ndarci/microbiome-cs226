@@ -3,18 +3,19 @@ library(ggplot2)
 library(ggpubr)
 library(dplyr)
 library(tidyverse)
+library(glmnet)
 
 # for principal components regression:
 #install.packages("pls")
 library(pls)
 
-# setwd("")
+setwd("~/src/microbiome-cs226/data/")
 
 ab = read.table("baseline_genusAbundance.txt")
 ab_pheno = read.table("baseline_genusAbundance_pheno.txt", header = T)
 pheno = ab_pheno[1:9]
 
-ab_pheno_all = read.table("allTimePoints_abundance_pheno_visitInfo.txt", header = T, sep = ' ')
+ab_pheno_all = read.table("allTimePoints_abundance_pheno_visitInfo.txt", header = T, sep = ',')
 ab_pheno_all = cbind(select(ab_pheno_all, starts_with("genus")),  ab_pheno_all[,c("SampleID", "SubjectID", "CollectionDate", "LDLHDL")])
 
 ab_pheno_all = na.omit(ab_pheno_all)
@@ -87,7 +88,7 @@ for (i in 0:10) {
 
 
 # run our 10 models thru the testing data
-yhat0 <- predict(fit0, s=fit0$lambda.1se, newx=x.test)
+yhat0 <- predict(fit0, s=fit0$lambda.1se, newx=x.test) # ridge
 yhat1 <- predict(fit1, s=fit1$lambda.1se, newx=x.test)
 yhat2 <- predict(fit2, s=fit2$lambda.1se, newx=x.test)
 yhat3 <- predict(fit3, s=fit3$lambda.1se, newx=x.test)
@@ -97,7 +98,7 @@ yhat6 <- predict(fit6, s=fit6$lambda.1se, newx=x.test)
 yhat7 <- predict(fit7, s=fit7$lambda.1se, newx=x.test)
 yhat8 <- predict(fit8, s=fit8$lambda.1se, newx=x.test)
 yhat9 <- predict(fit9, s=fit9$lambda.1se, newx=x.test)
-yhat10 <- predict(fit10, s=fit10$lambda.1se, newx=x.test)
+yhat10 <- predict(fit10, s=fit10$lambda.1se, newx=x.test) # lasso
 
 # using mspe as accuracy metric
 mse0 <- mean((y.test - yhat0)^2)
@@ -210,3 +211,14 @@ mse.bc = mean((bc_pred - y.test)^2)
 
 # and the winner is... elastic net
 c(mse.null,mse.full,mse5,mse.pcr,mse.bc)
+
+# plot results in a barplot
+msevec = c(mse.null, mse.full, mse0, mse10, mse5, mse.pcr, mse.bc)
+modelnames = c("Null", "Full", "Ridge", "LASSO", "ElasticNet (alpha=0.5)", 
+               "PCR Regression", "Dysbiosis score regression")
+barplotdf = data.frame("Model" = modelnames, "MSE" = msevec)
+barplotdf = barplotdf[order(barplotdf$MSE, decreasing = T),]
+barplot_comp = ggplot(barplotdf, aes(y = Model, x = MSE)) + 
+  geom_bar(stat = 'identity') + 
+  scale_y_discrete(limits = barplotdf$Model)
+ggsave("../fig/model_comparison_barplot.png", barplot_comp, dpi = 200)
