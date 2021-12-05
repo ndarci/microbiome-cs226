@@ -50,10 +50,6 @@ braycurtis_wrap <- function(abund, sample, healthy, pheno) {
 # function to get dysbiosis scores given an abundance table and response variable
 # target must be oriented so lower values are healthier
 dysbiosisAnalysis <- function(abund, pheno, target) {
-  # scale abundances to proportions
-  abund_scale = t(apply(abund, 1, function(row) row / sum(row)))
-  # rowSums(abund_scale) # verify this worked
-  
   # define "healthy" samples, from people with low cholesterol
   healthythresh = 0.1
   healthy = rownames(abund)[target < quantile(target, healthythresh)]

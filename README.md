@@ -8,9 +8,14 @@ John Randazzo, Maddie Murphy, Niko Darci-Maher
 Rscript cleanup.R
 ```
 
-# Run regression analysis
+# Run dimensionality reduction
 ```{bash}
-Rscript regression.R
+Rscript PCA.R
+```
+
+# Run penalized regression analysis
+```{bash}
+Rscript model_comparison.R
 ```
 
 # Compute dysbiosis scores and regress on them
